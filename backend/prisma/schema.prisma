@@ -7,9 +7,116 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Minimal dummy model so Prisma client can generate.
-// Will be replaced by real models in future milestones.
-model SystemCheck {
-  id        Int      @id @default(autoincrement())
+// Tracks the lifecycle of a single EmailJob delivery
+enum EmailJobStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
+}
+
+// A registered user who logs in via Google OAuth
+model User {
+  id        String   @id @default(cuid())
+  googleId  String   @unique
+  name      String
+  email     String   @unique
+  avatarUrl String?
+  createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  senders   Sender[]
+  campaigns Campaign[]
+}
+
+// An email address a user sends from (supports multiple senders per user)
+model Sender {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+
+  // The "from" address shown to recipients
+  email     String
+
+  // A human-readable label to identify this sender in the UI
+  label     String?
+
+  // Ethereal credentials are stored here as a JSON object.
+  // We keep them in a single column to avoid extra complexity for now.
+  // In a real system these would be encrypted at rest.
+  smtpConfig Json
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  campaigns Campaign[]
+
+  @@index([userId])
+}
+
+// One compose/scheduling operation by a user
+model Campaign {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id])
+  senderId         String
+  sender           Sender   @relation(fields: [senderId], references: [id])
+
+  subject          String
+  body             String
+
+  // When the first email in this campaign should be sent
+  startTime        DateTime
+
+  // Minimum seconds to wait between consecutive sends
+  delayBetweenEmails Int
+
+  // Maximum emails this campaign can send per hour
+  hourlyLimit      Int
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  emailJobs        EmailJob[]
+
+  @@index([userId])
+  @@index([senderId])
+}
+
+// One delivery attempt for one recipient within a Campaign
+model EmailJob {
+  id            String         @id @default(cuid())
+  campaignId    String
+  campaign      Campaign       @relation(fields: [campaignId], references: [id])
+
+  recipient     String
+
+  // The exact time this specific email is scheduled to go out
+  scheduledAt   DateTime
+
+  status        EmailJobStatus @default(PENDING)
+
+  // Filled in once the email is delivered
+  sentAt        DateTime?
+
+  // Filled in when the delivery fails; stores the error message
+  failureReason String?
+
+  // The BullMQ job ID so we can cross-reference our DB row with the queue
+  bullmqJobId   String?
+
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  // Queried heavily: "show me all pending jobs", "show me all sent jobs"
+  @@index([status])
+
+  // Queried heavily: "what jobs are scheduled to go out soon?"
+  @@index([scheduledAt])
+
+  // Queried heavily: "show me all jobs for this campaign"
+  @@index([campaignId])
+
+  // Useful when checking if a recipient was already emailed in this campaign
+  @@index([campaignId, recipient])
 }

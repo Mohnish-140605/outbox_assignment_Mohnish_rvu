@@ -38,7 +38,7 @@ app.get('/health', async (req: Request, res: Response) => {
     isHealthy = false;
   }
 
-  const status = isHealthy ? 'ok' : 'error';
+  const status = isHealthy ? 'ok' : 'error'; //ternary operator is used here to  reduce the number of lines and this is faster way to write codes
   const statusCode = isHealthy ? 200 : 503;
 
   res.status(statusCode).json({
