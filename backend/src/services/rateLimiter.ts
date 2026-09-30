@@ -1,25 +1,29 @@
 import redisClient from '../redis';
 
 /**
- * Atomically checks and enforces the hourly limit for a campaign using Redis.
- * Uses a Fixed Window strategy (per calendar hour).
+ * Atomically checks and enforces the hourly send limit for a sender using Redis.
+ * Uses a Fixed Window strategy scoped per-sender per calendar hour.
  *
- * @param campaignId The ID of the campaign to rate limit.
- * @param hourlyLimit The maximum number of emails allowed per hour.
+ * Scoping the key to the sender (not the campaign) means that the hourly limit
+ * is shared across all campaigns that use the same sender — matching the
+ * assignment requirement for an hourly email rate limit per sender.
+ *
+ * @param senderId    The ID of the sender whose limit to check.
+ * @param hourlyLimit The maximum number of emails the sender can send per hour.
  * @returns true if the email is allowed to be sent, false if the limit is exceeded.
  */
-export async function checkRateLimit(campaignId: string, hourlyLimit: number): Promise<boolean> {
+export async function checkRateLimit(senderId: string, hourlyLimit: number): Promise<boolean> {
   const now = new Date();
-  // Fixed window key format: reachinbox:rl:campaign:<id>:YYYY-MM-DD-HH
+  // Fixed window key format: reachinbox:rl:sender:<senderId>:YYYY-MM-DDTHH
   const hourStr = now.toISOString().substring(0, 13);
-  const key = `reachinbox:rl:campaign:${campaignId}:${hourStr}`;
+  const key = `reachinbox:rl:sender:${senderId}:${hourStr}`;
 
   // Atomic Lua script:
   // 1. INCR the counter
   // 2. If it's 1 (first request), set a 1-hour TTL
   // 3. If count exceeds limit, DECR to undo the consumption and return 0 (blocked)
   // 4. Otherwise return 1 (allowed)
-  const luaScript = 
+  const luaScript =
   `
     local current = redis.call("INCR", KEYS[1])
     if current == 1 then
@@ -43,6 +47,9 @@ export async function checkRateLimit(campaignId: string, hourlyLimit: number): P
 /**
  * Atomically allocates the next available safe timestamp for a rescheduled job,
  * guaranteeing it is at least `delayMs` after the previously allocated time.
+ *
+ * This is scoped per-campaign so that ordering within a campaign is preserved
+ * even when jobs are rescheduled due to rate limiting.
  */
 export async function getNextSafeScheduleTime(campaignId: string, requestedTimeMs: number, delayMs: number): Promise<number> {
   const key = `reachinbox:safetime:campaign:${campaignId}`;

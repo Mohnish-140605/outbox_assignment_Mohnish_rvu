@@ -129,7 +129,9 @@ async function processEmailJob(job: Job<EmailJobPayload>): Promise<void> {
   }
 
   // ── Step 2.5: Enforce Hourly Rate Limit ──────────────────────────────────
-  const isAllowed = await checkRateLimit(emailJob.campaignId, emailJob.campaign.hourlyLimit);
+  // Rate limiting is scoped per-sender: a single sender cannot exceed hourlyLimit
+  // emails per hour across ALL of its campaigns.
+  const isAllowed = await checkRateLimit(emailJob.campaign.senderId, emailJob.campaign.hourlyLimit);
 
   if (!isAllowed) {
     console.log(`Worker: Campaign ${emailJob.campaignId} hourly limit reached. Rescheduling EmailJob ${emailJobId}.`);
