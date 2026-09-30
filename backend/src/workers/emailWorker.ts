@@ -1,9 +1,11 @@
-import { Worker, Job } from 'bullmq';
+import { Worker, Job, DelayedError } from 'bullmq';
 import { redisConnection } from '../redisConnection';
 import { EMAIL_QUEUE_NAME } from '../queues/emailQueue';
 import prisma from '../db';
 import { EmailJobStatus } from '@prisma/client';
 import { sendEmail, SmtpConfig } from '../services/emailService';
+import { scheduleEmailJob } from '../services/schedulingService';
+import { checkRateLimit, getNextSafeScheduleTime } from '../services/rateLimiter';
 
 // Read concurrency from env; validate it is a usable positive integer.
 const rawConcurrency = process.env.EMAIL_WORKER_CONCURRENCY;
@@ -123,6 +125,33 @@ async function processEmailJob(job: Job<EmailJobPayload>): Promise<void> {
     console.warn(
       `Worker: EmailJob ${emailJobId} is PROCESSING (previous attempt did not finish). Retrying send.`
     );
+  }
+
+  // ── Step 2.5: Enforce Hourly Rate Limit ──────────────────────────────────
+  const isAllowed = await checkRateLimit(emailJob.campaignId, emailJob.campaign.hourlyLimit);
+
+  if (!isAllowed) {
+    console.log(`Worker: Campaign ${emailJob.campaignId} hourly limit reached. Rescheduling EmailJob ${emailJobId}.`);
+
+    // Calculate new scheduledAt preserving the original relative spacing and preventing collisions.
+    const requestedTimeMs = Date.now() + 60 * 60 * 1000;
+    const delayMs = emailJob.campaign.delayBetweenEmails * 1000;
+    const newScheduledAtMs = await getNextSafeScheduleTime(emailJob.campaignId, requestedTimeMs, delayMs);
+    const newScheduledAt = new Date(newScheduledAtMs);
+
+    // Revert status to PENDING and update the scheduled time in DB.
+    await prisma.emailJob.update({
+      where: { id: emailJobId },
+      data: {
+        status: EmailJobStatus.PENDING,
+        processingAt: null,
+        scheduledAt: newScheduledAt,
+      },
+    });
+
+    // Native BullMQ rescheduling logic for an active job.
+    await job.moveToDelayed(newScheduledAtMs, job.token);
+    throw new DelayedError();
   }
 
   // ── Step 3: Parse Sender SMTP configuration ──────────────────────────────
