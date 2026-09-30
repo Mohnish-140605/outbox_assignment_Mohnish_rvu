@@ -7,6 +7,7 @@ import { sendEmail, SmtpConfig } from '../services/emailService';
 import { scheduleEmailJob } from '../services/schedulingService';
 import { checkRateLimit, getNextSafeScheduleTime } from '../services/rateLimiter';
 import { indexEmailJob, buildEmailDocument } from '../services/emailSearchService';
+import { notifySenderHourlyLimitReached } from '../services/slackService';
 
 // Read concurrency from env; validate it is a usable positive integer.
 const rawConcurrency = process.env.EMAIL_WORKER_CONCURRENCY;
@@ -135,6 +136,13 @@ async function processEmailJob(job: Job<EmailJobPayload>): Promise<void> {
 
   if (!isAllowed) {
     console.log(`Worker: Campaign ${emailJob.campaignId} hourly limit reached. Rescheduling EmailJob ${emailJobId}.`);
+
+    await notifySenderHourlyLimitReached({
+      userId: emailJob.campaign.userId,
+      senderId: emailJob.campaign.senderId,
+      senderEmail: emailJob.campaign.sender.email,
+      hourlyLimit: emailJob.campaign.hourlyLimit,
+    });
 
     // Calculate new scheduledAt preserving the original relative spacing and preventing collisions.
     const requestedTimeMs = Date.now() + 60 * 60 * 1000;

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createCampaign, seedDevSender } from '../lib/api';
+import { createCampaign, ensureSender } from '../lib/api';
 
 export function ComposePage() {
   const navigate = useNavigate();
@@ -61,8 +61,7 @@ export function ComposePage() {
       setError(null);
       setSuccess(false);
 
-      // Seed/get dev sender first
-      const sender = await seedDevSender();
+      const sender = await ensureSender();
 
       // Create campaign
       await createCampaign({

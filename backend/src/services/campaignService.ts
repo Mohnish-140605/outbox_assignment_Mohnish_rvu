@@ -1,11 +1,11 @@
 import prisma from '../db';
-import { DEV_USER_ID } from '../devUser';
 import { EmailJobStatus } from '@prisma/client';
 import { scheduleEmailJob } from './schedulingService';
 import { indexEmailJob, buildEmailDocument } from './emailSearchService';
 
 // Shape of the validated input coming from the route handler
 interface CreateCampaignInput {
+  userId: string;
   senderId: string;
   subject: string;
   body: string;
@@ -26,6 +26,7 @@ interface CreateCampaignInput {
  */
 export async function createCampaign(input: CreateCampaignInput) {
   const {
+    userId,
     senderId,
     subject,
     body,
@@ -50,7 +51,7 @@ export async function createCampaign(input: CreateCampaignInput) {
   const result = await prisma.$transaction(async (tx) => {
     const campaign = await tx.campaign.create({
       data: {
-        userId: DEV_USER_ID,
+        userId,
         senderId,
         subject,
         body,
@@ -120,12 +121,12 @@ export async function createCampaign(input: CreateCampaignInput) {
  * Returns EmailJobs currently in PENDING status, ordered soonest first.
  * Scoped to the current user's campaigns.
  */
-export async function getScheduledEmails(limit: number, offset: number) {
+export async function getScheduledEmails(userId: string, limit: number, offset: number) {
   return prisma.emailJob.findMany({
     where: {
       status: EmailJobStatus.PENDING,
       campaign: {
-        userId: DEV_USER_ID,
+        userId,
       },
     },
     orderBy: { scheduledAt: 'asc' },
@@ -151,12 +152,12 @@ export async function getScheduledEmails(limit: number, offset: number) {
  * Returns EmailJobs that were successfully sent, ordered most recent first.
  * Scoped to the current user's campaigns.
  */
-export async function getSentEmails(limit: number, offset: number) {
+export async function getSentEmails(userId: string, limit: number, offset: number) {
   return prisma.emailJob.findMany({
     where: {
       status: EmailJobStatus.SENT,
       campaign: {
-        userId: DEV_USER_ID,
+        userId,
       },
     },
     orderBy: { sentAt: 'desc' },

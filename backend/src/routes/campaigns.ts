@@ -1,14 +1,22 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import prisma from '../db';
-import { DEV_USER_ID } from '../devUser';
+import { requireAuth, getAuthenticatedUser } from '../middleware/requireAuth';
 import {
   createCampaign,
   getScheduledEmails,
   getSentEmails,
 } from '../services/campaignService';
 import { searchEmails } from '../services/emailSearchService';
+import { ensureEtherealSender } from '../services/senderService';
 
 const router = Router();
+
+router.use(requireAuth);
+
+router.use((_req: Request, res: Response, next: NextFunction) => {
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+});
 
 // Simple regex for syntactic email validation.
 // It is intentionally basic — full RFC 5321 validation is out of scope.
@@ -69,9 +77,10 @@ router.post('/campaigns', async (req: Request, res: Response) => {
     return;
   }
 
+  const user = getAuthenticatedUser(req);
+
   // --- Sender ownership check ---
-  // Verify the sender exists and belongs to the current user.
-  // This will be replaced with the authenticated user ID once OAuth is implemented.
+  // Verify the sender exists and belongs to the authenticated session user.
   let sender;
   try {
     sender = await prisma.sender.findUnique({ where: { id: senderId } });
@@ -85,7 +94,7 @@ router.post('/campaigns', async (req: Request, res: Response) => {
     res.status(404).json({ error: 'Sender not found.' });
     return;
   }
-  if (sender.userId !== DEV_USER_ID) {
+  if (sender.userId !== user.id) {
     res.status(403).json({ error: 'Sender does not belong to the current user.' });
     return;
   }
@@ -93,6 +102,7 @@ router.post('/campaigns', async (req: Request, res: Response) => {
   // --- Create campaign + jobs ---
   try {
     const { campaign, emailJobs } = await createCampaign({
+      userId: user.id,
       senderId,
       subject,
       body,
@@ -134,7 +144,7 @@ router.get('/emails/scheduled', async (req: Request, res: Response) => {
   }
 
   try {
-    const jobs = await getScheduledEmails(limit, offset);
+    const jobs = await getScheduledEmails(getAuthenticatedUser(req).id, limit, offset);
     res.json({ jobs, limit, offset });
   } catch (err) {
     console.error('Failed to fetch scheduled emails:', err);
@@ -154,7 +164,7 @@ router.get('/emails/sent', async (req: Request, res: Response) => {
   }
 
   try {
-    const jobs = await getSentEmails(limit, offset);
+    const jobs = await getSentEmails(getAuthenticatedUser(req).id, limit, offset);
     res.json({ jobs, limit, offset });
   } catch (err) {
     console.error('Failed to fetch sent emails:', err);
@@ -181,7 +191,7 @@ router.get('/emails/search', async (req: Request, res: Response) => {
 
   try {
     const { items, total } = await searchEmails({
-      userId: DEV_USER_ID,
+      userId: getAuthenticatedUser(req).id,
       q,
       status,
       limit,
@@ -196,6 +206,23 @@ router.get('/emails/search', async (req: Request, res: Response) => {
     }
     console.error('Failed to search emails:', err);
     res.status(500).json({ error: 'Failed to search emails.' });
+  }
+});
+
+// POST /api/senders/ensure
+// Gets or creates the authenticated user's Ethereal sender.
+// SMTP credentials are never included in the response.
+router.post('/senders/ensure', async (req: Request, res: Response) => {
+  try {
+    const sender = await ensureEtherealSender(getAuthenticatedUser(req).id);
+    res.json({ sender });
+  } catch (err) {
+    if (err instanceof Error && err.message === 'ETHEREAL_NOT_CONFIGURED') {
+      res.status(500).json({ error: 'Email delivery is not configured on the server.' });
+      return;
+    }
+    console.error('Failed to ensure sender:', err);
+    res.status(500).json({ error: 'Failed to resolve sender.' });
   }
 });
 

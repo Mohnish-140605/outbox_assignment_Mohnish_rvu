@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom';
-import { PenSquare, Clock, Send, Search } from 'lucide-react';
+import { PenSquare, Clock, Send, Search, Activity } from 'lucide-react';
 
-export function Sidebar() {
+export function Sidebar({ queueDashboardUrl }: { queueDashboardUrl: string }) {
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
       isActive
@@ -31,18 +31,16 @@ export function Sidebar() {
           <Search className="w-5 h-5" />
           Search
         </NavLink>
+        <a
+          href={queueDashboardUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+        >
+          <Activity className="w-5 h-5" />
+          Queue dashboard
+        </a>
       </nav>
-      <div className="p-4 border-t border-gray-100">
-        <div className="flex items-center gap-3 px-2 py-2">
-          <div className="w-8 h-8 rounded-full bg-green-100 text-green-700 flex items-center justify-center font-bold">
-            DU
-          </div>
-          <div className="flex flex-col">
-            <span className="text-sm font-medium text-gray-900">Dev User</span>
-            <span className="text-xs text-gray-500">Google OAuth coming soon</span>
-          </div>
-        </div>
-      </div>
     </aside>
   );
 }

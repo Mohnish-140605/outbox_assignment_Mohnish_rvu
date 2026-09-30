@@ -1,7 +1,6 @@
 import nodemailer from 'nodemailer';
 
-// The exact fields stored in Sender.smtpConfig.
-// This matches the shape written by the /dev/seed-sender endpoint.
+// The exact fields stored in Sender.smtpConfig (server-side only).
 export interface SmtpConfig {
   host: string;
   port: number;

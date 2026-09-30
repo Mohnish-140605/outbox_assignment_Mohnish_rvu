@@ -7,8 +7,9 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     proxy: {
-      '/api': 'http://localhost:4000',
-      '/dev': 'http://localhost:4000'
-    }
+      '/api': { target: 'http://localhost:4000', changeOrigin: true },
+      '/auth': { target: 'http://localhost:4000', changeOrigin: true },
+      '/admin': { target: 'http://localhost:4000', changeOrigin: true },
+    },
   }
 })

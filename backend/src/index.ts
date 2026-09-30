@@ -1,82 +1,64 @@
+import './loadEnv';
 import express, { Request, Response, NextFunction } from 'express';
+import cors from 'cors';
+import session from 'express-session';
+import { RedisStore } from 'connect-redis';
 import prisma from './db';
 import redisClient from './redis';
+import { getSessionConfig } from './config/auth';
+import authRouter from './routes/auth';
+import slackRouter from './routes/slack';
 import campaignRouter from './routes/campaigns';
-import { DEV_USER_ID } from './devUser';
+import { createBullBoardAdapter, requireAuthRedirect, BULL_BOARD_PATH } from './bullBoard';
 import { reconcilePendingJobs } from './services/schedulingService';
 import { reconcileEmailSearchIndex } from './services/emailSearchService';
 import { startEmailWorker, stopEmailWorker } from './workers/emailWorker';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
+const authConfig = getSessionConfig();
+
+app.use(
+  cors({
+    origin: authConfig.frontendOrigin,
+    credentials: true,
+  })
+);
 
 app.use(express.json());
 
-// All campaign and email routes live under /api via a single mount.
-// The router itself defines /campaigns, /emails/scheduled, /emails/sent.
+app.use(
+  session({
+    name: 'reachinbox.sid',
+    secret: authConfig.sessionSecret,
+    store: new RedisStore({ client: redisClient, prefix: 'sess:' }),
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      sameSite: 'lax',
+      // Local HTTP development cannot use Secure cookies. Production HTTPS should
+      // set NODE_ENV=production so this flag becomes true. Behind a reverse proxy,
+      // also set TRUST_PROXY=1 so Express trusts X-Forwarded-Proto.
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    },
+  })
+);
+
+if (process.env.TRUST_PROXY === '1') {
+  app.set('trust proxy', 1);
+}
+
+app.use('/auth', authRouter);
+app.use('/auth', slackRouter);
+
+const bullBoardAdapter = createBullBoardAdapter();
+app.use(BULL_BOARD_PATH, requireAuthRedirect, bullBoardAdapter.getRouter());
+
+// All campaign, sender, and email routes live under /api.
+// Authentication is enforced on the campaign router.
 app.use('/api', campaignRouter);
-
-// Development-only endpoint: creates a Sender row for the placeholder user
-// so we have a valid senderId to test POST /api/campaigns.
-// This will be removed once real Sender management APIs exist.
-app.post('/dev/seed-sender', async (req: Request, res: Response) => {
-  // Guard: this endpoint must never run in production.
-  if (process.env.NODE_ENV === 'production') {
-    res.status(404).json({ error: 'Not found.' });
-    return;
-  }
-
-  // Read Ethereal credentials from environment variables.
-  // These must be set in backend/.env before running verification.
-  const etherealUser = process.env.ETHEREAL_USER;
-  const etherealPass = process.env.ETHEREAL_PASSWORD;
-  const etherealHost = process.env.ETHEREAL_HOST || 'smtp.ethereal.email';
-  const etherealPort = Number(process.env.ETHEREAL_PORT) || 587;
-
-  if (!etherealUser || !etherealPass) {
-    res.status(500).json({
-      error: 'ETHEREAL_USER and ETHEREAL_PASSWORD must be set in backend/.env to seed the development sender.',
-    });
-    return;
-  }
-
-  const smtpConfig = { host: etherealHost, port: etherealPort, user: etherealUser, pass: etherealPass };
-
-  try {
-    // Ensure the placeholder User row exists before creating the Sender.
-    await prisma.user.upsert({
-      where: { id: DEV_USER_ID },
-      update: {},
-      create: {
-        id: DEV_USER_ID,
-        googleId: 'dev-google-id',
-        name: 'Dev User',
-        email: 'devuser@example.com',
-      },
-    });
-
-    const existing = await prisma.sender.findFirst({ where: { userId: DEV_USER_ID } });
-    if (existing) {
-      // Update credentials in case they changed.
-      await prisma.sender.update({ where: { id: existing.id }, data: { email: etherealUser, smtpConfig } });
-      res.json({ message: 'Dev sender updated with current credentials.', sender: { id: existing.id, email: etherealUser } });
-      return;
-    }
-
-    const sender = await prisma.sender.create({
-      data: {
-        userId: DEV_USER_ID,
-        email: etherealUser,
-        label: 'Development Sender (Ethereal)',
-        smtpConfig,
-      },
-    });
-    res.status(201).json({ message: 'Dev sender created.', sender: { id: sender.id, email: sender.email } });
-  } catch (err) {
-    console.error('Seed sender failed:', err);
-    res.status(500).json({ error: 'Failed to create dev sender.' });
-  }
-});
 
 app.get('/health', async (req: Request, res: Response) => {  
   //check if the database and redis are connected using prisma and redisClient
@@ -171,6 +153,7 @@ async function startup() {
 
   app.listen(PORT, () => {
     console.log(`Express server is running on http://localhost:${PORT}`);
+    console.log(`BullMQ dashboard: http://localhost:${PORT}${BULL_BOARD_PATH}`);
   });
 
   // Graceful shutdown: finish in-flight jobs before exiting.
