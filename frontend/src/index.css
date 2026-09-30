@@ -1,9 +1,10 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
 html, body, #root {
   height: 100%;
   margin: 0;
-  background-color: #f9fafb; /* minimal clean white/gray background */
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  background-color: #f9fafb;
+  -webkit-font-smoothing: antialiased;
 }
-
-/*we use this to make sure it stays consistent throughout the app the color font etc
