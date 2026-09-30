@@ -1,6 +1,7 @@
 import prisma from '../db';
 import { DEV_USER_ID } from '../devUser';
 import { EmailJobStatus } from '@prisma/client';
+import { scheduleEmailJob } from './schedulingService';
 
 // Shape of the validated input coming from the route handler
 interface CreateCampaignInput {
@@ -15,7 +16,12 @@ interface CreateCampaignInput {
 
 /**
  * Creates one Campaign and one EmailJob per recipient inside a single
- * database transaction. If any insert fails, all inserts are rolled back.
+ * database transaction, then schedules each job into BullMQ.
+ *
+ * The BullMQ calls are intentionally OUTSIDE the Prisma transaction:
+ * PostgreSQL and Redis cannot share a transaction. If the process crashes
+ * between the DB commit and the queue.add calls, startup reconciliation
+ * will recover the missing BullMQ jobs on next boot.
  */
 export async function createCampaign(input: CreateCampaignInput) {
   const {
@@ -39,8 +45,7 @@ export async function createCampaign(input: CreateCampaignInput) {
     return { recipient, scheduledAt };
   });
 
-  // Run everything inside one transaction so a partial failure leaves
-  // no orphaned Campaign or EmailJob rows in the database.
+  // Step 1: Persist Campaign + EmailJobs atomically in PostgreSQL.
   const result = await prisma.$transaction(async (tx) => {
     const campaign = await tx.campaign.create({
       data: {
@@ -69,6 +74,17 @@ export async function createCampaign(input: CreateCampaignInput) {
 
     return { campaign, emailJobs };
   });
+
+  // Step 2: Schedule each EmailJob into BullMQ AFTER the transaction commits.
+  // Failures here are non-fatal for the API response — the startup reconciler
+  // will pick up any jobs whose bullmqJobId was never populated.
+  for (const emailJob of result.emailJobs) {
+    try {
+      await scheduleEmailJob(emailJob.id, emailJob.scheduledAt);
+    } catch (err) {
+      console.error(`Failed to schedule EmailJob ${emailJob.id} into BullMQ after creation:`, err);
+    }
+  }
 
   return result;
 }

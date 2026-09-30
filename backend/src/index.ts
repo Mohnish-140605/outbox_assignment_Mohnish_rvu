@@ -3,6 +3,8 @@ import prisma from './db';
 import redisClient from './redis';
 import campaignRouter from './routes/campaigns';
 import { DEV_USER_ID } from './devUser';
+import { reconcilePendingJobs } from './services/schedulingService';
+import { startEmailWorker, stopEmailWorker } from './workers/emailWorker';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -113,16 +115,46 @@ async function startup() {
 
   try {
     console.log('Connecting to Redis...');
-    await redisClient.connect();
+    // isOpen is false when the client has not yet connected or was disconnected.
+    // Guarding here prevents a "Socket already opened" error on ts-node-dev restarts.
+    if (!redisClient.isOpen) {
+      await redisClient.connect();
+    }
     console.log('Redis connected.');
   } catch (error) {
     console.error('Failed to connect to Redis on startup:', error);
     process.exit(1);
   }
 
+  // Run startup reconciliation before accepting HTTP traffic.
+  // This re-enqueues any PENDING EmailJobs that lost their BullMQ entry
+  // due to a crash between the PostgreSQL commit and the queue.add call.
+  try {
+    await reconcilePendingJobs();
+  } catch (error) {
+    // Reconciliation failure is logged but does not prevent the server from
+    // starting — existing in-queue jobs will still be processed normally.
+    console.error('Startup reconciliation encountered an error:', error);
+  }
+
+  // Start the BullMQ worker. It will process jobs as they become due.
+  const worker = startEmailWorker();
+
   app.listen(PORT, () => {
     console.log(`Express server is running on http://localhost:${PORT}`);
   });
+
+  // Graceful shutdown: finish in-flight jobs before exiting.
+  async function shutdown(signal: string) {
+    console.log(`\nReceived ${signal}. Shutting down gracefully…`);
+    await stopEmailWorker(worker);
+    await prisma.$disconnect();
+    await redisClient.disconnect();
+    process.exit(0);
+  }
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
 // Global error handler — must be registered AFTER all routes.
