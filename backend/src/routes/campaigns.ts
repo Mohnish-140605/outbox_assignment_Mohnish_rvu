@@ -6,6 +6,7 @@ import {
   getScheduledEmails,
   getSentEmails,
 } from '../services/campaignService';
+import { searchEmails } from '../services/emailSearchService';
 
 const router = Router();
 
@@ -158,6 +159,43 @@ router.get('/emails/sent', async (req: Request, res: Response) => {
   } catch (err) {
     console.error('Failed to fetch sent emails:', err);
     res.status(500).json({ error: 'Failed to fetch sent emails.' });
+  }
+});
+
+// GET /api/emails/search?q=<query>&status=<SENT|PENDING|...>
+// Full-text search over the authenticated user's email jobs using Elasticsearch.
+// - q: search term (optional; empty returns recent emails)
+// - status: filter by EmailJob status (optional; must be a valid status)
+// - limit: page size (default 20, max 100)
+// - offset: pagination offset (default 0)
+router.get('/emails/search', async (req: Request, res: Response) => {
+  const q = typeof req.query['q'] === 'string' ? req.query['q'] : '';
+  const status = typeof req.query['status'] === 'string' ? req.query['status'] : undefined;
+  const limit = Math.min(Number(req.query['limit']) || 20, 100);
+  const offset = Number(req.query['offset']) || 0;
+
+  if (isNaN(limit) || isNaN(offset) || limit < 1 || offset < 0) {
+    res.status(400).json({ error: 'limit must be >= 1 and offset must be >= 0.' });
+    return;
+  }
+
+  try {
+    const { items, total } = await searchEmails({
+      userId: DEV_USER_ID,
+      q,
+      status,
+      limit,
+      offset,
+    });
+    res.json({ items, total });
+  } catch (err) {
+    // Surface validation errors (bad status value) as 400; everything else as 500.
+    if (err instanceof Error && err.message.startsWith('Invalid status filter')) {
+      res.status(400).json({ error: err.message });
+      return;
+    }
+    console.error('Failed to search emails:', err);
+    res.status(500).json({ error: 'Failed to search emails.' });
   }
 });
 

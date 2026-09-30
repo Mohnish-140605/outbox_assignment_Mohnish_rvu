@@ -6,6 +6,7 @@ import { EmailJobStatus } from '@prisma/client';
 import { sendEmail, SmtpConfig } from '../services/emailService';
 import { scheduleEmailJob } from '../services/schedulingService';
 import { checkRateLimit, getNextSafeScheduleTime } from '../services/rateLimiter';
+import { indexEmailJob, buildEmailDocument } from '../services/emailSearchService';
 
 // Read concurrency from env; validate it is a usable positive integer.
 const rawConcurrency = process.env.EMAIL_WORKER_CONCURRENCY;
@@ -180,14 +181,34 @@ async function processEmailJob(job: Job<EmailJobPayload>): Promise<void> {
     });
 
     // ── Step 5: Mark SENT ─────────────────────────────────────────────────
+    const sentAt = new Date();
     await prisma.emailJob.update({
       where: { id: emailJobId },
       data: {
         status: EmailJobStatus.SENT,
-        sentAt: new Date(),
+        sentAt,
         failureReason: null,
       },
     });
+
+    // Index the SENT status into Elasticsearch.
+    // Failure here must not affect the already-committed DB update.
+    try {
+      await indexEmailJob(buildEmailDocument({
+        ...emailJob,
+        status: EmailJobStatus.SENT,
+        sentAt,
+        campaign: {
+          id: emailJob.campaign.id,
+          userId: emailJob.campaign.userId,
+          senderId: emailJob.campaign.senderId,
+          subject: emailJob.campaign.subject,
+          body: emailJob.campaign.body,
+        },
+      }));
+    } catch (esErr) {
+      console.error(`Worker: failed to index SENT EmailJob ${emailJobId} into Elasticsearch:`, esErr);
+    }
 
     console.log(`Email sent: ${emailJobId}`);
     if (result.previewUrl !== undefined) {
@@ -206,6 +227,24 @@ async function processEmailJob(job: Job<EmailJobPayload>): Promise<void> {
         failureReason: reason,
       },
     });
+
+    // Index the FAILED status into Elasticsearch.
+    // Failure here must not affect the already-committed DB update.
+    try {
+      await indexEmailJob(buildEmailDocument({
+        ...emailJob,
+        status: EmailJobStatus.FAILED,
+        campaign: {
+          id: emailJob.campaign.id,
+          userId: emailJob.campaign.userId,
+          senderId: emailJob.campaign.senderId,
+          subject: emailJob.campaign.subject,
+          body: emailJob.campaign.body,
+        },
+      }));
+    } catch (esErr) {
+      console.error(`Worker: failed to index FAILED EmailJob ${emailJobId} into Elasticsearch:`, esErr);
+    }
 
     // Re-throw so BullMQ can apply its retry policy for transient failures.
     throw err;

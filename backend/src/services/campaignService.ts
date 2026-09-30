@@ -2,6 +2,7 @@ import prisma from '../db';
 import { DEV_USER_ID } from '../devUser';
 import { EmailJobStatus } from '@prisma/client';
 import { scheduleEmailJob } from './schedulingService';
+import { indexEmailJob, buildEmailDocument } from './emailSearchService';
 
 // Shape of the validated input coming from the route handler
 interface CreateCampaignInput {
@@ -83,6 +84,32 @@ export async function createCampaign(input: CreateCampaignInput) {
       await scheduleEmailJob(emailJob.id, emailJob.scheduledAt);
     } catch (err) {
       console.error(`Failed to schedule EmailJob ${emailJob.id} into BullMQ after creation:`, err);
+    }
+  }
+
+  // Step 3: Index each EmailJob into Elasticsearch AFTER scheduling.
+  // Failures are logged but do not affect the API response or the DB state.
+  // Startup reconciliation will repair missing documents on next boot.
+  for (const emailJob of result.emailJobs) {
+    try {
+      const doc = buildEmailDocument({
+        id: emailJob.id,
+        recipient: emailJob.recipient,
+        status: emailJob.status,
+        scheduledAt: emailJob.scheduledAt,
+        sentAt: null,
+        createdAt: emailJob.createdAt,
+        campaign: {
+          id: result.campaign.id,
+          userId: result.campaign.userId,
+          senderId: result.campaign.senderId,
+          subject: result.campaign.subject,
+          body: result.campaign.body,
+        },
+      });
+      await indexEmailJob(doc);
+    } catch (err) {
+      console.error(`Failed to index EmailJob ${emailJob.id} into Elasticsearch after creation:`, err);
     }
   }
 

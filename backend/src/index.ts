@@ -4,6 +4,7 @@ import redisClient from './redis';
 import campaignRouter from './routes/campaigns';
 import { DEV_USER_ID } from './devUser';
 import { reconcilePendingJobs } from './services/schedulingService';
+import { reconcileEmailSearchIndex } from './services/emailSearchService';
 import { startEmailWorker, stopEmailWorker } from './workers/emailWorker';
 
 const app = express();
@@ -153,6 +154,16 @@ async function startup() {
     // Reconciliation failure is logged but does not prevent the server from
     // starting — existing in-queue jobs will still be processed normally.
     console.error('Startup reconciliation encountered an error:', error);
+  }
+
+  // Reconcile PostgreSQL EmailJobs into the Elasticsearch search index.
+  // This is a best-effort operation: if Elasticsearch is unavailable, we log
+  // the error and continue — email scheduling and delivery are unaffected.
+  // The reconciliation runs again on the next restart.
+  try {
+    await reconcileEmailSearchIndex();
+  } catch (error) {
+    console.error('Elasticsearch reconciliation encountered an error (search may be stale):', error);
   }
 
   // Start the BullMQ worker. It will process jobs as they become due.

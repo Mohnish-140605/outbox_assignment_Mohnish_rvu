@@ -23,6 +23,25 @@ services:
     volumes:
       - redis_data:/data
 
+  elasticsearch:
+    image: elasticsearch:8.13.4
+    container_name: reachinbox-elasticsearch
+    restart: always
+    environment:
+      # Single-node cluster for local development.
+      - discovery.type=single-node
+      # Disable TLS and API-key authentication so the backend can connect
+      # without certificates in the local dev environment.
+      - xpack.security.enabled=false
+      - xpack.security.http.ssl.enabled=false
+      # Limit heap to avoid consuming all memory on a dev machine.
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+
 volumes:
   postgres_data:
   redis_data:
+  elasticsearch_data:
