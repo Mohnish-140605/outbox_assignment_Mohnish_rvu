@@ -58,20 +58,41 @@ export async function scheduleEmailJob(emailJobId: string, scheduledAt: Date): P
  * This runs once on startup. It does NOT use cron, setInterval, or setTimeout.
  */
 export async function reconcilePendingJobs(): Promise<void> {
-  const pendingJobs = await prisma.emailJob.findMany({
-    where: { status: EmailJobStatus.PENDING },
-    select: { id: true, scheduledAt: true, bullmqJobId: true },
+  const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+
+  // Find PENDING jobs, or PROCESSING jobs older than 10 minutes (stranded).
+  const jobsToReconcile = await prisma.emailJob.findMany({
+    where: { 
+      OR: [
+        { status: EmailJobStatus.PENDING },
+        { 
+          status: EmailJobStatus.PROCESSING, 
+          processingAt: { lt: tenMinutesAgo } 
+        }
+      ]
+    },
+    select: { id: true, scheduledAt: true, bullmqJobId: true, status: true },
   });
 
-  if (pendingJobs.length === 0) {
-    console.log('Reconciliation: no PENDING jobs found.');
+  if (jobsToReconcile.length === 0) {
+    console.log('Reconciliation: no PENDING or stranded PROCESSING jobs found.');
     return;
   }
 
-  console.log(`Reconciliation: found ${pendingJobs.length} PENDING job(s). Ensuring BullMQ entries…`);
+  console.log(`Reconciliation: found ${jobsToReconcile.length} job(s) requiring attention. Ensuring BullMQ entries…`);
 
-  for (const job of pendingJobs) {
+  for (const job of jobsToReconcile) {
     try {
+      // If the job was stranded in PROCESSING, we must transition it back to PENDING
+      // so the worker can claim it cleanly.
+      if (job.status === EmailJobStatus.PROCESSING) {
+        await prisma.emailJob.update({
+          where: { id: job.id },
+          data: { status: EmailJobStatus.PENDING, processingAt: null }
+        });
+        console.log(`Reset stranded job ${job.id} to PENDING.`);
+      }
+
       await scheduleEmailJob(job.id, job.scheduledAt);
 
       if (job.bullmqJobId === null) {

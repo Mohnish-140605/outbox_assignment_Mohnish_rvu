@@ -25,9 +25,24 @@ app.post('/dev/seed-sender', async (req: Request, res: Response) => {
     return;
   }
 
+  // Read Ethereal credentials from environment variables.
+  // These must be set in backend/.env before running verification.
+  const etherealUser = process.env.ETHEREAL_USER;
+  const etherealPass = process.env.ETHEREAL_PASSWORD;
+  const etherealHost = process.env.ETHEREAL_HOST || 'smtp.ethereal.email';
+  const etherealPort = Number(process.env.ETHEREAL_PORT) || 587;
+
+  if (!etherealUser || !etherealPass) {
+    res.status(500).json({
+      error: 'ETHEREAL_USER and ETHEREAL_PASSWORD must be set in backend/.env to seed the development sender.',
+    });
+    return;
+  }
+
+  const smtpConfig = { host: etherealHost, port: etherealPort, user: etherealUser, pass: etherealPass };
+
   try {
     // Ensure the placeholder User row exists before creating the Sender.
-    // The Sender table has a foreign key to User, so User must come first.
     await prisma.user.upsert({
       where: { id: DEV_USER_ID },
       update: {},
@@ -41,15 +56,18 @@ app.post('/dev/seed-sender', async (req: Request, res: Response) => {
 
     const existing = await prisma.sender.findFirst({ where: { userId: DEV_USER_ID } });
     if (existing) {
-      res.json({ message: 'Dev sender already exists.', sender: { id: existing.id, email: existing.email } });
+      // Update credentials in case they changed.
+      await prisma.sender.update({ where: { id: existing.id }, data: { email: etherealUser, smtpConfig } });
+      res.json({ message: 'Dev sender updated with current credentials.', sender: { id: existing.id, email: etherealUser } });
       return;
     }
+
     const sender = await prisma.sender.create({
       data: {
         userId: DEV_USER_ID,
-        email: 'dev@ethereal.example',
-        label: 'Development Sender',
-        smtpConfig: { host: 'smtp.ethereal.email', port: 587, user: 'dev@ethereal.example', pass: 'placeholder' },
+        email: etherealUser,
+        label: 'Development Sender (Ethereal)',
+        smtpConfig,
       },
     });
     res.status(201).json({ message: 'Dev sender created.', sender: { id: sender.id, email: sender.email } });

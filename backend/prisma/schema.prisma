@@ -96,6 +96,9 @@ model EmailJob {
 
   status        EmailJobStatus @default(PENDING)
 
+  // Filled in when the job transitions to PROCESSING. Used for crash recovery.
+  processingAt  DateTime?
+
   // Filled in once the email is delivered
   sentAt        DateTime?
 
