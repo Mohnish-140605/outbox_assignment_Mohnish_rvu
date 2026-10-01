@@ -13,7 +13,7 @@ function slackConnectUrl(): string {
 }
 
 function queueDashboardUrl(): string {
-  return `${backendOrigin()}/admin/queues`;
+  return `${backendOrigin()}/admin/queues/`;
 }
 
 export function Layout() {
