@@ -5,11 +5,9 @@ services:
     rootDir: backend
     region: oregon
     plan: free
-    buildCommand: npm ci && npx prisma generate && npm run build
-    preDeployCommand: npx prisma migrate deploy
-    startCommand: npm start
+    buildCommand: npm ci --include=dev && npx prisma generate && npm run build
+    startCommand: npx prisma migrate deploy && npm start
     healthCheckPath: /health
-    maxShutdownDelaySeconds: 120
     envVars:
       - key: NODE_VERSION
         value: 22.14.0
