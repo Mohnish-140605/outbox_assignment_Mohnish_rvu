@@ -46,7 +46,7 @@ export function SentPage() {
     return (
       <div className="text-center py-16 bg-white border border-gray-200 rounded-lg shadow-sm">
         <h3 className="text-lg font-medium text-gray-900 mb-2">No sent emails</h3>
-        <p className="text-gray-500">Successfully sent emails will appear here.</p>
+        <p className="text-gray-500">Sent and failed emails will appear here.</p>
       </div>
     );
   }
@@ -59,7 +59,7 @@ export function SentPage() {
             <tr>
               <th className="px-6 py-3 text-left font-medium text-gray-500 tracking-wider">Recipient</th>
               <th className="px-6 py-3 text-left font-medium text-gray-500 tracking-wider">Subject</th>
-              <th className="px-6 py-3 text-left font-medium text-gray-500 tracking-wider">Sent At</th>
+              <th className="px-6 py-3 text-left font-medium text-gray-500 tracking-wider">Sent / Failed At</th>
               <th className="px-6 py-3 text-left font-medium text-gray-500 tracking-wider">Status</th>
             </tr>
           </thead>
@@ -69,10 +69,19 @@ export function SentPage() {
                 <td className="px-6 py-4 whitespace-nowrap text-gray-900">{job.recipient}</td>
                 <td className="px-6 py-4 text-gray-600 truncate max-w-xs">{job.campaign?.subject || '-'}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-gray-500">
-                  {job.sentAt ? new Date(job.sentAt).toLocaleString() : '-'}
+                  {job.status === 'SENT' && job.sentAt
+                    ? new Date(job.sentAt).toLocaleString()
+                    : job.status === 'FAILED' && job.updatedAt
+                      ? new Date(job.updatedAt).toLocaleString()
+                      : '-'}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                  <span
+                    title={job.status === 'FAILED' ? job.failureReason ?? undefined : undefined}
+                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      job.status === 'FAILED' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                    }`}
+                  >
                     {job.status}
                   </span>
                 </td>

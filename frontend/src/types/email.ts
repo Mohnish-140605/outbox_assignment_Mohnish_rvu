@@ -4,6 +4,8 @@ export interface EmailJob {
   status: 'PENDING' | 'PROCESSING' | 'SENT' | 'FAILED';
   scheduledAt?: string;
   sentAt: string | null;
+  updatedAt?: string;
+  failureReason?: string | null;
   campaign?: {
     id: string;
     subject: string;

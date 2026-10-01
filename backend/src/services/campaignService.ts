@@ -149,25 +149,27 @@ export async function getScheduledEmails(userId: string, limit: number, offset: 
 }
 
 /**
- * Returns EmailJobs that were successfully sent, ordered most recent first.
+ * Returns sent and failed EmailJobs, ordered most recently updated first.
  * Scoped to the current user's campaigns.
  */
 export async function getSentEmails(userId: string, limit: number, offset: number) {
   return prisma.emailJob.findMany({
     where: {
-      status: EmailJobStatus.SENT,
+      status: { in: [EmailJobStatus.SENT, EmailJobStatus.FAILED] },
       campaign: {
         userId,
       },
     },
-    orderBy: { sentAt: 'desc' },
+    orderBy: { updatedAt: 'desc' },
     take: limit,
     skip: offset,
     select: {
       id: true,
       recipient: true,
       sentAt: true,
+      updatedAt: true,
       status: true,
+      failureReason: true,
       campaign: {
         select: {
           id: true,
