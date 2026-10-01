@@ -10,7 +10,7 @@ export function ComposePage() {
   const [body, setBody] = useState('');
   const [recipientsText, setRecipientsText] = useState('');
   const [startTime, setStartTime] = useState('');
-  const [delay, setDelay] = useState<number>(0);
+  const [delay, setDelay] = useState<number>(5);
   const [hourlyLimit, setHourlyLimit] = useState<number>(100);
   
   const [detectedEmails, setDetectedEmails] = useState<string[]>([]);
@@ -179,7 +179,7 @@ export function ComposePage() {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Delay (ms)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Delay between emails (seconds)</label>
               <input
                 required
                 type="number"
