@@ -1,8 +1,10 @@
 import type { AuthUser, CampaignCreationResponse, ScheduledResponse, SearchResponse, Sender, SentResponse } from '../types/email';
 import type { SlackNotificationsResponse } from '../types/notifications';
 
+const apiOrigin = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
+
 async function apiFetch(input: string, init: RequestInit = {}): Promise<Response> {
-  return fetch(input, {
+  return fetch(`${apiOrigin}${input}`, {
     ...init,
     credentials: 'include',
     headers: init.headers,

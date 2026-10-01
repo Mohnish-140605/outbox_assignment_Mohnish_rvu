@@ -6,6 +6,9 @@ import { backendConfig } from './config/runtime';
 // No credentials needed for local dev (security disabled in docker-compose).
 const esClient = new Client({
   node: backendConfig.elasticsearchUrl,
+  ...(backendConfig.elasticsearchApiKey
+    ? { auth: { apiKey: backendConfig.elasticsearchApiKey } }
+    : {}),
 });
 
 export default esClient;

@@ -19,6 +19,7 @@ export const backendConfig = {
   trustProxy: readString('TRUST_PROXY', '0') === '1',
   redisUrl: readString('REDIS_URL', 'redis://localhost:6379') ?? 'redis://localhost:6379',
   elasticsearchUrl: readString('ELASTICSEARCH_URL', 'http://localhost:9200') ?? 'http://localhost:9200',
+  elasticsearchApiKey: readString('ELASTICSEARCH_API_KEY'),
   etherealHost: readString('ETHEREAL_HOST', 'smtp.ethereal.email') ?? 'smtp.ethereal.email',
   etherealPort: Number(readString('ETHEREAL_PORT', '587') ?? '587'),
   etherealUser: readString('ETHEREAL_USER'),
