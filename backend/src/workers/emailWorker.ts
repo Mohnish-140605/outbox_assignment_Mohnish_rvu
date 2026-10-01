@@ -57,6 +57,11 @@ function parseSmtpConfig(raw: unknown): SmtpConfig {
   };
 }
 
+function isFinalAttempt(job: Job<EmailJobPayload>): boolean {
+  const attempts = job.opts?.attempts ?? 1;
+  return job.attemptsMade + 1 >= attempts;
+}
+
 async function processEmailJob(job: Job<EmailJobPayload>): Promise<void> {
   const { emailJobId } = job.data;
 
@@ -227,13 +232,21 @@ async function processEmailJob(job: Job<EmailJobPayload>): Promise<void> {
     const reason = err instanceof Error ? err.message : 'Unknown SMTP error';
     console.error(`Worker: EmailJob ${emailJobId} send failed: ${reason}`);
 
+    const finalAttempt = isFinalAttempt(job);
+
+    // Only the final attempt is terminal; retries reset the row so the job can be retried.
     await prisma.emailJob.update({
       where: { id: emailJobId },
       data: {
-        status: EmailJobStatus.FAILED,
+        status: finalAttempt ? EmailJobStatus.FAILED : EmailJobStatus.PENDING,
+        processingAt: finalAttempt ? undefined : null,
         failureReason: reason,
       },
     });
+
+    if (!finalAttempt) {
+      throw err;
+    }
 
     // Index the FAILED status into Elasticsearch.
     // Failure here must not affect the already-committed DB update.
