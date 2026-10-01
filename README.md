@@ -17,6 +17,89 @@ Scheduling is done with BullMQ delayed jobs stored in Redis. There are no cron j
 | Login | Google OAuth (real, no mock) |
 | Alerts | Slack OAuth with an incoming webhook |
 
+## Screenshots
+
+### Login and dashboard
+
+**1. Google sign-in page**
+
+<img width="1614" height="861" alt="Screenshot 2026-10-01 135907" src="https://github.com/user-attachments/assets/2714e8b9-36f4-4c2e-b5ef-5ab715d011d1" />
+<img width="1262" height="255" alt="Screenshot 2026-10-01 150607" src="https://github.com/user-attachments/assets/d5595b86-b8b1-4b95-be2d-5a65ff6d00e5" />
+
+
+**2. Scheduled emails list**
+Shows pending emails with scheduled time and status.
+
+<img width="1605" height="910" alt="Screenshot 2026-10-01 120737" src="https://github.com/user-attachments/assets/9d4f2549-4d41-45c7-9df0-9f742c5c46d2" />
+
+**3. Sent and failed emails list**
+Shows sent emails and a failed one with its status badge.
+
+<img width="1414" height="889" alt="Screenshot 2026-10-01 120750" src="https://github.com/user-attachments/assets/269fef9c-af21-4ad1-99a5-eb950a8e843f" />
+
+### Composing a campaign
+
+**4. Compose screen**
+Editor toolbar, subject, recipients, send time, delay and hourly limit.
+
+<img width="1501" height="903" alt="Screenshot 2026-10-01 120725" src="https://github.com/user-attachments/assets/e35f592a-14b0-4ec3-b606-9aae4a5b913f" />
+
+**5. Schedule summary and rate-limit warning**
+The summary line and the amber note when recipients exceed the hourly limit.
+
+<img width="1659" height="885" alt="Screenshot 2026-10-01 120852" src="https://github.com/user-attachments/assets/edf25912-c375-4d66-89a2-b6a936e64657" />
+
+### Queue, sending and persistence
+
+**6. Bull Board with delayed jobs**
+Live queue view showing the scheduled jobs waiting in Redis.
+
+<img width="1470" height="514" alt="Screenshot 2026-10-01 011219" src="https://github.com/user-attachments/assets/3312bb44-4b3b-4ba8-912b-2dd6fa5e7fd6" />
+
+**7. Restart test: server stopped and started again**
+Terminal showing the backend stopped, restarted, and the reconciliation log lines.
+
+<img width="1533" height="839" alt="Screenshot 2026-10-01 011240" src="https://github.com/user-attachments/assets/ef67c25c-1b9a-40a7-b903-8134c19c166f" />
+
+**8. Ethereal inbox with the received emails**
+Each address received exactly once after the restart.
+
+<img width="1304" height="724" alt="Screenshot 2026-10-01 150304" src="https://github.com/user-attachments/assets/360c40fa-b3eb-4a97-8576-482a8ea820aa" />
+
+**9. Rate limit in action**
+Scheduled list after the limit was hit: sent emails moved to Sent, the rest moved to the next hour.
+
+<img width="1480" height="826" alt="Screenshot 2026-10-01 120809" src="https://github.com/user-attachments/assets/a55fe520-1a15-4c71-86fc-ea3b825c45bf" />
+
+### Slack alerts
+
+**10. Slack connected state**
+Sidebar with the Slack logo, connected status and workspace name.
+
+<img width="1501" height="903" alt="Screenshot 2026-10-01 120725" src="https://github.com/user-attachments/assets/465c71fd-9030-4f71-a3a3-49bfbbeee20b" />
+
+**11. Slack message in the channel**
+The alert posted to Slack when a sender hit its hourly limit.
+
+<img width="1675" height="961" alt="Screenshot 2026-10-01 075658" src="https://github.com/user-attachments/assets/9401e118-7a92-491d-83db-e6b33e7c9836" />
+
+**12. In-app Slack notification toast**
+The toast shown in the dashboard after Slack accepted the message.
+
+<img width="1666" height="898" alt="Screenshot 2026-10-01 150751" src="https://github.com/user-attachments/assets/f0fd3ea7-7ced-4bd9-8b44-b08b9401ff4d" />
+
+### Search and health
+
+**13. Email search results**
+Results from Elasticsearch for a recipient or subject.
+
+<img width="750" height="727" alt="Screenshot 2026-10-01 150835" src="https://github.com/user-attachments/assets/8d1b6180-b78f-4919-9115-6cb9d0d66ed8" />
+
+**14. All services running**
+Output of `docker compose ps` plus the `/health` response.
+
+<img width="1239" height="229" alt="Screenshot 2026-10-01 150915" src="https://github.com/user-attachments/assets/a93599c0-2a7c-4e9a-a1f0-3da1fa20df15" />
+
 ## How it works
 
 ```mermaid
