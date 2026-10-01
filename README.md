@@ -362,3 +362,5 @@ The Blueprint runs `prisma migrate deploy` before starting the API and uses Rend
 - SMTP settings and OAuth tokens stay on the server. They are never sent to the frontend or indexed in Elasticsearch.
 - Slack notification rows store the user ID, event type, message text, timestamps and read state. Slack team and channel IDs are kept separately for the channel link.
 - `.env` files are ignored by Git. Only the `.env.example` files are committed.
+
+(frontend website: https://reachinbox-frontend-y5a8.onrender.com/)
