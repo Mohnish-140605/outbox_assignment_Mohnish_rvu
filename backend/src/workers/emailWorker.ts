@@ -8,15 +8,12 @@ import { scheduleEmailJob } from '../services/schedulingService';
 import { checkRateLimit, getNextSafeScheduleTime } from '../services/rateLimiter';
 import { indexEmailJob, buildEmailDocument } from '../services/emailSearchService';
 import { notifySenderHourlyLimitReached } from '../services/slackService';
+import { backendConfig, getEmailWorkerConcurrency } from '../config/runtime';
 
-// Read concurrency from env; validate it is a usable positive integer.
-const rawConcurrency = process.env.EMAIL_WORKER_CONCURRENCY;
-const parsedConcurrency = rawConcurrency !== undefined ? Number(rawConcurrency) : NaN;
-const CONCURRENCY = Number.isInteger(parsedConcurrency) && parsedConcurrency > 0
-  ? parsedConcurrency
-  : 5;
+const rawConcurrency = backendConfig.emailWorkerConcurrencyRaw;
+const CONCURRENCY = getEmailWorkerConcurrency();
 
-if (rawConcurrency !== undefined && (isNaN(parsedConcurrency) || parsedConcurrency < 1)) {
+if (rawConcurrency !== undefined && (Number(rawConcurrency) < 1 || !Number.isInteger(Number(rawConcurrency)))) {
   console.warn(
     `EMAIL_WORKER_CONCURRENCY "${rawConcurrency}" is invalid. Using default: ${CONCURRENCY}`
   );

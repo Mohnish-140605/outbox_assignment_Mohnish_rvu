@@ -2,6 +2,7 @@ import { randomBytes } from 'crypto';
 import { Router, Request, Response } from 'express';
 import { OAuth2Client } from 'google-auth-library';
 import { getFrontendOrigin, getGoogleOAuthConfig } from '../config/auth';
+import { isSecureSessionCookie } from '../config/runtime';
 import { requireAuth } from '../middleware/requireAuth';
 import { upsertGoogleUser } from '../services/userService';
 
@@ -140,7 +141,7 @@ function destroySession(req: Request, res: Response, redirect: boolean): void {
     res.clearCookie('reachinbox.sid', {
       httpOnly: true,
       sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
+      secure: isSecureSessionCookie(),
     });
 
     if (err) {

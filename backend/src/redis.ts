@@ -1,8 +1,9 @@
 import { createClient } from 'redis';
+import { backendConfig } from './config/runtime';
 
-// Create a single shared Redis client instance using the REDIS_URL from env.
+// Create a single shared Redis client instance using the validated runtime config.
 const redisClient = createClient({
-  url: process.env.REDIS_URL || 'redis://localhost:6379'
+  url: backendConfig.redisUrl,
 });
 
 redisClient.on('error', (err) => {

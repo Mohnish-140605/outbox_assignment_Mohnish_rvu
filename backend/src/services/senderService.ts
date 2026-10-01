@@ -1,4 +1,5 @@
 import prisma from '../db';
+import { backendConfig } from '../config/runtime';
 
 export interface PublicSender {
   id: string;
@@ -11,10 +12,10 @@ export interface PublicSender {
  * SMTP credentials stay on the server and are never returned to the client.
  */
 export async function ensureEtherealSender(userId: string): Promise<PublicSender> {
-  const etherealUser = process.env.ETHEREAL_USER;
-  const etherealPass = process.env.ETHEREAL_PASSWORD;
-  const etherealHost = process.env.ETHEREAL_HOST || 'smtp.ethereal.email';
-  const etherealPort = Number(process.env.ETHEREAL_PORT) || 587;
+  const etherealUser = backendConfig.etherealUser;
+  const etherealPass = backendConfig.etherealPassword;
+  const etherealHost = backendConfig.etherealHost;
+  const etherealPort = backendConfig.etherealPort;
 
   if (!etherealUser || !etherealPass) {
     throw new Error('ETHEREAL_NOT_CONFIGURED');

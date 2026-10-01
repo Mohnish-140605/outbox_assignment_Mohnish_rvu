@@ -6,6 +6,7 @@ import { RedisStore } from 'connect-redis';
 import prisma from './db';
 import redisClient from './redis';
 import { getSessionConfig } from './config/auth';
+import { backendConfig, isSecureSessionCookie } from './config/runtime';
 import authRouter from './routes/auth';
 import slackRouter from './routes/slack';
 import campaignRouter from './routes/campaigns';
@@ -15,7 +16,7 @@ import { reconcileEmailSearchIndex } from './services/emailSearchService';
 import { startEmailWorker, stopEmailWorker } from './workers/emailWorker';
 
 const app = express();
-const PORT = process.env.PORT || 4000;
+const PORT = backendConfig.port;
 const authConfig = getSessionConfig();
 
 app.use(
@@ -40,13 +41,13 @@ app.use(
       // Local HTTP development cannot use Secure cookies. Production HTTPS should
       // set NODE_ENV=production so this flag becomes true. Behind a reverse proxy,
       // also set TRUST_PROXY=1 so Express trusts X-Forwarded-Proto.
-      secure: process.env.NODE_ENV === 'production',
+      secure: isSecureSessionCookie(),
       maxAge: 7 * 24 * 60 * 60 * 1000,
     },
   })
 );
 
-if (process.env.TRUST_PROXY === '1') {
+if (backendConfig.trustProxy) {
   app.set('trust proxy', 1);
 }
 
@@ -91,7 +92,7 @@ app.get('/health', async (req: Request, res: Response) => {
     isHealthy = false;
   }
 
-  const status = isHealthy ? 'ok' : 'error'; //ternary operator is used here to  reduce the number of lines and this is faster way to write codes
+  const status = isHealthy ? 'ok' : 'error';
   const statusCode = isHealthy ? 200 : 503;
 
   res.status(statusCode).json({
