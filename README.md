@@ -138,68 +138,34 @@ Open `http://localhost:5173`. Production frontend check:
 npm run build
 ```
 
-## Deploy to Render + Elastic Cloud
+## Deploy a Free Preview to Render
 
-The repository includes a `render.yaml` Blueprint. It defines:
+The repository includes a `render.yaml` Blueprint for a Render static site, a Node web service running Express and the BullMQ worker, Free PostgreSQL, and Free Key Value (Redis). **This is only a UI/API preview, not a reliable email scheduler deployment.**
 
-- A Render Node web service for the Express API and BullMQ worker.
-- A Render static site for the Vite frontend, with SPA fallback routing.
-- Render PostgreSQL and a persistent Redis-compatible Key Value instance (`noeviction`, journal + snapshot).
-- Elastic Cloud as the external Elasticsearch provider.
+Render Free limitations that affect this application:
 
-The Blueprint uses paid service plans for the API, database, and persistent queue storage so scheduled jobs are not lost when a free Redis instance restarts. Review the plans and current pricing shown in Render before creating resources.
+- The backend sleeps after 15 minutes without inbound traffic, so its worker is not continuously running.
+- Free Key Value has no persistence; a restart loses BullMQ jobs and sessions.
+- Free PostgreSQL expires after 30 days and has no backups.
+- Free web services cannot send outbound SMTP on port 587, so Ethereal email delivery will fail.
+- Elasticsearch is not included in the Blueprint. Search requires an external Elasticsearch endpoint and API key.
+- Render may still request payment verification during signup. Do not enter card details if you do not want to provide them.
 
-### 1. Push the repository to GitHub
+Use this option to preview the interface and API only. For reliable scheduling after restarts, use local Docker or paid persistent services.
 
-Render deploys the repository's selected branch. Confirm your intended changes are committed and pushed. Do not add either `.env` file, `backend/cookie.txt`, or temporary files; they are ignored by Git.
+### Deploy steps
 
-### 2. Create Elastic Cloud credentials
+1. Push the repository to GitHub. The Blueprint is configured for the `main` branch.
+2. In Render, choose **New → Blueprint**, connect the repository, and select `render.yaml`.
+3. Confirm each service uses the **Free** plan before provisioning.
+4. Provide `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_CALLBACK_URL` when prompted. Do not add local `.env` files to Git.
+5. After Render assigns the service URLs, set the Google authorized origin to the frontend URL and set the redirect URI and `GOOGLE_CALLBACK_URL` to:
 
-1. Create an Elasticsearch deployment in [Elastic Cloud](https://cloud.elastic.co/).
-2. Copy the deployment's HTTPS Elasticsearch endpoint.
-3. Create an API key limited to the `reachinbox-emails` index. The app needs index creation/mapping, indexing, and search privileges (for example, `manage`, `read`, and `write` on that index).
-4. Keep the endpoint and encoded API key for the Render Blueprint prompts. Do not put them in source control.
+   `https://<api-service>.onrender.com/auth/google/callback`
 
-### 3. Create the Render services
+6. Redeploy the API, then check `https://<api-service>.onrender.com/health` and open the frontend URL.
 
-1. In Render, choose **New → Blueprint** and connect this repository's deployment branch.
-2. Render reads `render.yaml`. Review the planned resources and costs before confirming provisioning.
-3. Supply the prompted secret values:
-   - Required for sign-in: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_CALLBACK_URL`.
-   - Required for test sending: `ETHEREAL_USER`, `ETHEREAL_PASSWORD`.
-   - Required for search: `ELASTICSEARCH_URL`, `ELASTICSEARCH_API_KEY`.
-   - Optional for Slack: `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`, `SLACK_CALLBACK_URL`.
-4. After Render provisions the services, copy the actual API and frontend `onrender.com` URLs. If Render assigned different URLs than the service names imply, update the callback values and matching provider settings below.
-
-The Blueprint references the generated PostgreSQL, Redis, frontend-origin, and API-origin values between Render services. It runs `prisma migrate deploy` before starting the API. The backend binds to Render's injected `PORT` and reports health at `/health`.
-
-### 4. Configure OAuth redirect URLs
-
-In Google Cloud Console, add the deployed frontend URL as an authorized JavaScript origin and set the exact authorized redirect URI to:
-
-```text
-https://<your-api-service>.onrender.com/auth/google/callback
-```
-
-Set `GOOGLE_CALLBACK_URL` in the Render API service to that same callback URL.
-
-If using Slack, set `SLACK_CALLBACK_URL` to:
-
-```text
-https://<your-api-service>.onrender.com/auth/slack/callback
-```
-
-Add that exact URL to the Slack app's OAuth redirect URLs. Slack credentials may remain unset if Slack integration is not needed.
-
-### 5. Verify the deployment
-
-After both services report **Live**:
-
-1. Open `https://<your-frontend-service>.onrender.com`.
-2. Check `https://<your-api-service>.onrender.com/health` reports PostgreSQL and Redis connected.
-3. Sign in with Google, ensure the sender uses valid SMTP settings, then send a test campaign. Ethereal captures mail and provides a preview; it does not deliver to real inboxes.
-4. Confirm scheduled jobs appear in the authenticated Bull Board route at `https://<your-api-service>.onrender.com/admin/queues/`.
-5. If Elasticsearch is unavailable or its API key is invalid, email sending continues but search/indexing will be stale; fix the Elastic Cloud settings and redeploy.
+The Blueprint runs `prisma migrate deploy` before starting the API and binds to Render's injected `PORT`. Its Redis/Database are Free resources, so do not rely on this deployment for durable scheduled jobs or real email delivery.
 
 ## External Services
 

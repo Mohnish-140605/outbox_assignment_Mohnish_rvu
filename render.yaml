@@ -4,7 +4,7 @@ services:
     runtime: node
     rootDir: backend
     region: oregon
-    plan: 0.5c-512mb
+    plan: free
     buildCommand: npm ci && npx prisma generate && npm run build
     preDeployCommand: npx prisma migrate deploy
     startCommand: npm start
@@ -36,24 +36,6 @@ services:
         sync: false
       - key: GOOGLE_CALLBACK_URL
         sync: false
-      - key: SLACK_CLIENT_ID
-        sync: false
-      - key: SLACK_CLIENT_SECRET
-        sync: false
-      - key: SLACK_CALLBACK_URL
-        sync: false
-      - key: ETHEREAL_HOST
-        value: smtp.ethereal.email
-      - key: ETHEREAL_PORT
-        value: 587
-      - key: ETHEREAL_USER
-        sync: false
-      - key: ETHEREAL_PASSWORD
-        sync: false
-      - key: ELASTICSEARCH_URL
-        sync: false
-      - key: ELASTICSEARCH_API_KEY
-        sync: false
 
   - type: web
     runtime: static
@@ -82,14 +64,14 @@ services:
   - type: keyvalue
     name: reachinbox-redis
     region: oregon
-    plan: 256mb
+    plan: free
     ipAllowList: []
     maxmemoryPolicy: noeviction
-    persistenceMode: journal-snapshot
+    persistenceMode: off
 
 databases:
   - name: reachinbox-postgres
     region: oregon
-    plan: 0.5c-1g
+    plan: free
     databaseName: reachinbox
     ipAllowList: []
