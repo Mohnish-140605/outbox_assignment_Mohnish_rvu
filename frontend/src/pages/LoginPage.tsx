@@ -1,4 +1,5 @@
 import { useSearchParams } from 'react-router-dom';
+import { APP_NAME } from '../lib/brand';
 
 function googleAuthUrl(): string {
   const origin = import.meta.env.VITE_BACKEND_ORIGIN as string | undefined;
@@ -25,7 +26,7 @@ export function LoginPage() {
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6 font-sans">
       <div className="w-full max-w-md bg-white border border-gray-200 rounded-lg shadow-sm p-8">
-        <h1 className="text-2xl font-bold tracking-tight text-gray-900">ReachInbox</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-gray-900">{APP_NAME}</h1>
         <p className="mt-2 text-sm text-gray-500">Sign in to schedule and manage your email campaigns.</p>
 
         {errorMessage && (

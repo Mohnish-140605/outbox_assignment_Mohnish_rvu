@@ -10,6 +10,7 @@ import { backendConfig, isSecureSessionCookie } from './config/runtime';
 import authRouter from './routes/auth';
 import slackRouter from './routes/slack';
 import campaignRouter from './routes/campaigns';
+import notificationsRouter from './routes/notifications';
 import { createBullBoardAdapter, requireAuthRedirect, BULL_BOARD_PATH } from './bullBoard';
 import { reconcilePendingJobs } from './services/schedulingService';
 import { reconcileEmailSearchIndex } from './services/emailSearchService';
@@ -26,7 +27,7 @@ app.use(
   })
 );
 
-app.use(express.json());
+app.use(express.json({ limit: '3mb' }));
 
 app.use(
   session({
@@ -60,6 +61,7 @@ app.use(BULL_BOARD_PATH, requireAuthRedirect, bullBoardAdapter.getRouter());
 // All campaign, sender, and email routes live under /api.
 // Authentication is enforced on the campaign router.
 app.use('/api', campaignRouter);
+app.use('/api', notificationsRouter);
 
 app.get('/health', async (req: Request, res: Response) => {  
   //check if the database and redis are connected using prisma and redisClient

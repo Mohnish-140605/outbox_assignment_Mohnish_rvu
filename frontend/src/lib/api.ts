@@ -1,4 +1,5 @@
 import type { AuthUser, CampaignCreationResponse, ScheduledResponse, SearchResponse, Sender, SentResponse } from '../types/email';
+import type { SlackNotificationsResponse } from '../types/notifications';
 
 async function apiFetch(input: string, init: RequestInit = {}): Promise<Response> {
   return fetch(input, {
@@ -85,4 +86,27 @@ export async function ensureSender(): Promise<Sender> {
   }
   const data = await res.json();
   return data.sender;
+}
+
+async function readApiError(response: Response, fallback: string): Promise<Error> {
+  const payload: unknown = await response.json().catch(() => null);
+  if (payload && typeof payload === 'object' && 'error' in payload && typeof payload.error === 'string') {
+    return new Error(payload.error);
+  }
+  return new Error(fallback);
+}
+
+export async function fetchSlackNotifications(limit = 10): Promise<SlackNotificationsResponse> {
+  const res = await apiFetch(`/api/notifications/slack?limit=${limit}`);
+  if (!res.ok) throw await readApiError(res, 'Failed to fetch Slack notifications.');
+  return res.json();
+}
+
+export async function acknowledgeSlackNotifications(ids: string[]): Promise<void> {
+  const res = await apiFetch('/api/notifications/slack/acknowledge', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids }),
+  });
+  if (!res.ok) throw await readApiError(res, 'Failed to acknowledge Slack notifications.');
 }

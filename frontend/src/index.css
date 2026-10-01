@@ -1,10 +1,132 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
-html, body, #root {
+@theme {
+  --color-page-bg: #ffffff;
+  --color-border: #e5e7eb;
+  --color-text-main: #111827;
+  --color-text-muted: #4b5563;
+  --color-accent: #1fa463;
+  --color-accent-light: #e8f5ee;
+  --color-scheduled-bg: #fde8d4;
+  --color-scheduled-text: #b45309;
+  --color-sent-bg: #f3f4f6;
+  --color-sent-text: #374151;
+  --color-failed-bg: #fee2e2;
+  --color-failed-text: #dc2626;
+
+  --font-size-base: 13px;
+  --font-size-secondary: 12px;
+
+  --radius-md: 6px;
+}
+
+/* Basic prose styles for TipTap editor */
+.prose {
+  max-width: 65ch;
+  color: var(--color-text-main);
+}
+
+.prose p {
+  margin-top: 0.75em;
+  margin-bottom: 0.75em;
+}
+
+.prose ul,
+.prose ol {
+  margin-top: 0.75em;
+  margin-bottom: 0.75em;
+  padding-left: 1.5em;
+}
+
+.prose li {
+  margin-top: 0.25em;
+  margin-bottom: 0.25em;
+}
+
+.prose strong {
+  font-weight: 600;
+}
+
+.prose em {
+  font-style: italic;
+}
+
+.prose a {
+  color: var(--color-accent);
+  text-decoration: underline;
+}
+
+.prose blockquote {
+  border-left: 2px solid var(--color-border);
+  padding-left: 1em;
+  margin-left: 0;
+  color: var(--color-text-muted);
+}
+
+.prose h1,
+.prose h2,
+.prose h3 {
+  font-weight: 600;
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+}
+
+.ProseMirror {
+  min-height: 220px;
+  outline: none;
+}
+
+.ProseMirror img {
+  display: inline-block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+}
+
+.ProseMirror img.ProseMirror-selectednode {
+  outline: 2px solid var(--color-accent);
+}
+
+.ProseMirror p.is-editor-empty:first-child::before {
+  color: var(--color-text-muted);
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+@keyframes slack-toast-enter {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slack-toast-exit {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-4px); }
+}
+
+.slack-toast-enter {
+  animation: slack-toast-enter 180ms ease-out both;
+}
+
+.slack-toast-exit {
+  animation: slack-toast-exit 160ms ease-in both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slack-toast-enter,
+  .slack-toast-exit {
+    animation: none;
+  }
+}
+
+html,
+body,
+#root {
   height: 100%;
   margin: 0;
   font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
-  background-color: #f9fafb;
+  background-color: var(--color-page-bg);
   -webkit-font-smoothing: antialiased;
 }

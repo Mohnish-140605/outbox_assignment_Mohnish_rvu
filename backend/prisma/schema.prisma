@@ -28,12 +28,28 @@ model User {
   slackAccessToken String?
   slackTeamName    String?
   slackChannel     String?
+  slackTeamId      String?
+  slackChannelId   String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   senders   Sender[]
   campaigns Campaign[]
+  slackNotifications SlackNotification[]
+}
+
+model SlackNotification {
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type           String
+  title          String
+  message        String
+  createdAt      DateTime  @default(now())
+  acknowledgedAt DateTime?
+
+  @@index([userId, acknowledgedAt, createdAt])
 }
 
 // An email address a user sends from (supports multiple senders per user)

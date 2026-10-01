@@ -15,8 +15,10 @@ interface SlackOAuthAccessResponse {
   incoming_webhook?: {
     url?: string;
     channel?: string;
+    channel_id?: string;
   };
   team?: {
+    id?: string;
     name?: string;
   };
 }
@@ -31,6 +33,8 @@ export async function exchangeSlackCode(
   webhookUrl: string;
   teamName: string | null;
   channel: string | null;
+  teamId: string | null;
+  channelId: string | null;
 }> {
   const body = new URLSearchParams({
     client_id: clientId,
@@ -60,6 +64,8 @@ export async function exchangeSlackCode(
     webhookUrl,
     teamName: data.team?.name ?? null,
     channel: data.incoming_webhook?.channel ?? null,
+    teamId: data.team?.id ?? null,
+    channelId: data.incoming_webhook?.channel_id ?? null,
   };
 }
 
@@ -70,6 +76,8 @@ export async function saveSlackConnection(
     webhookUrl: string;
     teamName: string | null;
     channel: string | null;
+    teamId: string | null;
+    channelId: string | null;
   }
 ): Promise<void> {
   await prisma.user.update({
@@ -79,6 +87,8 @@ export async function saveSlackConnection(
       slackWebhookUrl: connection.webhookUrl,
       slackTeamName: connection.teamName,
       slackChannel: connection.channel,
+      slackTeamId: connection.teamId,
+      slackChannelId: connection.channelId,
     },
   });
 }
@@ -91,6 +101,8 @@ export async function clearSlackConnection(userId: string): Promise<void> {
       slackWebhookUrl: null,
       slackTeamName: null,
       slackChannel: null,
+      slackTeamId: null,
+      slackChannelId: null,
     },
   });
 }
@@ -142,7 +154,17 @@ export async function notifySenderHourlyLimitReached(
       console.error(
         `Slack rate-limit notify: webhook returned HTTP ${response.status}`
       );
+      return;
     }
+
+    await prisma.slackNotification.create({
+      data: {
+        userId: payload.userId,
+        type: 'RATE_LIMIT_REACHED',
+        title: 'Email rate limit reached',
+        message: 'Some scheduled emails were moved to a later time.',
+      },
+    });
   } catch (err) {
     console.error('Slack rate-limit notify failed:', err);
   }

@@ -6,3 +6,6 @@ dist/
 build/
 coverage/
 .DS_Store
+/tmp/
+/backend/cookie.txt
+/backend/create-session.js

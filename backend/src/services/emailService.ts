@@ -1,4 +1,16 @@
-import nodemailer from 'nodemailer';
+import { randomUUID } from 'crypto';
+import nodemailer, { type SendMailOptions } from 'nodemailer';
+import { htmlToText } from 'html-to-text';
+
+const MAX_INLINE_IMAGE_BYTES = 2 * 1024 * 1024;
+const HTML_MARKUP_PATTERN = /<\/?(?:p|h[1-6]|strong|b|em|i|u|s|ul|ol|li|a|blockquote|br|img)\b[^>]*>/i;
+const INLINE_IMAGE_PATTERN = /(<img\b[^>]*?\bsrc=["'])(data:image\/([^;]+);base64,([^"']+))(["'][^>]*>)/gi;
+const IMAGE_TYPES: Record<string, string> = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/gif': 'gif',
+  'image/webp': 'webp',
+};
 
 // The exact fields stored in Sender.smtpConfig (server-side only).
 export interface SmtpConfig {
@@ -22,6 +34,55 @@ export interface SendEmailResult {
   previewUrl: string | undefined;
 }
 
+function prepareEmailContent(body: string): {
+  text: string;
+  html?: string;
+  attachments?: SendMailOptions['attachments'];
+} {
+  if (!HTML_MARKUP_PATTERN.test(body)) {
+    return { text: body };
+  }
+
+  const attachments: NonNullable<SendMailOptions['attachments']> = [];
+  let totalImageBytes = 0;
+  let html = body.replace(
+    INLINE_IMAGE_PATTERN,
+    (imageTag, prefix: string, dataUrl: string, subtype: string, encoded: string, suffix: string) => {
+      const contentType = `image/${subtype.toLowerCase()}`;
+      const extension = IMAGE_TYPES[contentType];
+      if (!extension || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(encoded)) {
+        throw new Error('Embedded images must be valid PNG, JPEG, GIF, or WebP files.');
+      }
+
+      const content = Buffer.from(encoded, 'base64');
+      totalImageBytes += content.byteLength;
+      if (totalImageBytes > MAX_INLINE_IMAGE_BYTES) {
+        throw new Error('Embedded images cannot exceed 2 MB per email.');
+      }
+
+      const contentId = randomUUID();
+      attachments.push({
+        filename: `inline-image.${extension}`,
+        content,
+        contentType,
+        cid: contentId,
+      });
+      return `${prefix}cid:${contentId}${suffix}`;
+    }
+  );
+
+  if (/<img\b[^>]*\bsrc=["']data:image\//i.test(html)) {
+    throw new Error('Embedded images must be valid PNG, JPEG, GIF, or WebP files.');
+  }
+
+  const text = htmlToText(html, { wordwrap: 100 });
+  return {
+    text,
+    html,
+    ...(attachments.length > 0 ? { attachments } : {}),
+  };
+}
+
 /**
  * Sends one email through the given SMTP configuration.
  *
@@ -30,6 +91,7 @@ export interface SendEmailResult {
  */
 export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult> {
   const { smtpConfig, from, to, subject, text } = input;
+  const content = prepareEmailContent(text);
 
   const transport = nodemailer.createTransport({
     host: smtpConfig.host,
@@ -47,7 +109,7 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
     from,
     to,
     subject,
-    text,
+    ...content,
   });
 
   const previewUrl = nodemailer.getTestMessageUrl(info);
